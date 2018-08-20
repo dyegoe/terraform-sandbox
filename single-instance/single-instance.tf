@@ -8,9 +8,6 @@ resource "aws_instance" "example" {
   key_name = "dyego-default"
   instance_type = "t2.nano"
   security_groups = [ "open-ssh" ]
-  provisioner "local-exec" {
-    command = "echo ${aws_instance.example.public_ip} > ip_address.txt"
-  }
 }
 output "ip" {
   value = "${aws_instance.example.public_ip}"
