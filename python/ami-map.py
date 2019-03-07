@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
+
 import boto3
-from os import getenv
+from os import getenv, path
 from sys import argv
 from dateutil import parser
 
@@ -13,14 +15,25 @@ def newest_image(list_of_images):
             latest = image
     return latest
 
-filters = [{'Name': 'architecture','Values': ['x86_64']},
-           {'Name': 'state','Values': ['available']},
-           {'Name': 'root-device-type','Values': ['ebs']},
-           {'Name': 'virtualization-type','Values': ['hvm']},
-           {'Name': 'image-type','Values': ['machine']}]
+filters_default = [
+    {'Name': 'architecture','Values': ['x86_64']},
+    {'Name': 'state','Values': ['available']},
+    {'Name': 'root-device-type','Values': ['ebs']},
+    {'Name': 'virtualization-type','Values': ['hvm']},
+    {'Name': 'image-type','Values': ['machine']}
+]
 
-img_options = ['amazonlinux', 'amazonlinuxecs', 'ubuntu1404', 'ubuntu1604', 'ubuntu1804']
-""" Ubuntu aws cli search
+"""
+aws ec2 describe-images --filter \
+    Name=architecture,Values=x86_64 \
+    Name=state,Values=available \
+    Name=root-device-type,Values=ebs \
+    Name=virtualization-type,Values=hvm \
+    Name=image-type,Values=machine \
+    Name=owner-id,Values=137112412989 \
+    Name=name,Values='amzn-ami-hvm-*-gp2' | jq '.Images[] | .Name .ImageId'  | sort
+"""
+"""
 aws ec2 describe-images --filter \
     Name=architecture,Values=x86_64 \
     Name=state,Values=available \
@@ -28,32 +41,62 @@ aws ec2 describe-images --filter \
     Name=virtualization-type,Values=hvm \
     Name=image-type,Values=machine \
     Name=owner-id,Values=591542846629 \
-    Name=name,Values='amzn-ami-*.h-amazon-ecs-optimized' | jq '.Images[] | .Name'  | sort
+    Name=name,Values='amzn-ami-*.h-amazon-ecs-optimized' | jq '.Images[] | .Name .ImageId'  | sort
 """
-if len(argv) > 1 and str(argv[1]) in img_options:
-    if str(argv[1]) == 'amazonlinux':
-        filters.append({'Name': 'owner-id','Values': ['137112412989']})
-        filters.append({'Name': 'name','Values': ['amzn-ami-hvm-*-gp2']})
-    elif str(argv[1]) == 'amazonlinuxecs':
-        filters.append({'Name': 'owner-id','Values': ['591542846629']})
-        filters.append({'Name': 'name','Values': ['amzn-ami-*.h-amazon-ecs-optimized']})
-    elif str(argv[1]) == 'ubuntu1404':
-        filters.append({'Name': 'owner-id','Values': ['099720109477']})
-        filters.append({'Name': 'name','Values': ['ubuntu/images/hvm-ssd/ubuntu-trusty-14.04*']})
-    elif str(argv[1]) == 'ubuntu1604':
-        filters.append({'Name': 'owner-id','Values': ['099720109477']})
-        filters.append({'Name': 'name','Values': ['ubuntu/images/hvm-ssd/ubuntu-xenial-16.04*']})
-    elif str(argv[1]) == 'ubuntu1804':
-        filters.append({'Name': 'owner-id','Values': ['099720109477']})
-        filters.append({'Name': 'name','Values': ['ubuntu/images/hvm-ssd/ubuntu-bionic-18.04*']})
-    else:
-        print("You must use {} [{}]".format(argv[0], ' | '.join(img_options)))
-        exit(1)
-else:
-    print("You must use {} [{}]".format(argv[0], ' | '.join(img_options)))
-    exit(1)
+"""
+aws ec2 describe-images --filter \
+    Name=architecture,Values=x86_64 \
+    Name=state,Values=available \
+    Name=root-device-type,Values=ebs \
+    Name=virtualization-type,Values=hvm \
+    Name=image-type,Values=machine \
+    Name=owner-id,Values=099720109477 \
+    Name=name,Values='ubuntu/images/hvm-ssd/ubuntu-trusty-14.04*' | jq '.Images[] | .Name .ImageId'  | sort
+"""
+"""
+aws ec2 describe-images --filter \
+    Name=architecture,Values=x86_64 \
+    Name=state,Values=available \
+    Name=root-device-type,Values=ebs \
+    Name=virtualization-type,Values=hvm \
+    Name=image-type,Values=machine \
+    Name=owner-id,Values=099720109477 \
+    Name=name,Values='ubuntu/images/hvm-ssd/ubuntu-xenial-16.04*' | jq '.Images[] | .Name .ImageId'  | sort
+"""
+"""
+aws ec2 describe-images --filter \
+    Name=architecture,Values=x86_64 \
+    Name=state,Values=available \
+    Name=root-device-type,Values=ebs \
+    Name=virtualization-type,Values=hvm \
+    Name=image-type,Values=machine \
+    Name=owner-id,Values=099720109477 \
+    Name=name,Values='ubuntu/images/hvm-ssd/ubuntu-bionic-18.04*' | jq '.Images[] | .Name .ImageId'  | sort
+"""
+filters_dists = {
+    'amazonlinux' : [
+        {'Name': 'owner-id','Values': ['137112412989']},
+        {'Name': 'name','Values': ['amzn-ami-hvm-*-gp2']}
+    ],
+    'amazonlinuxecs' : [
+        {'Name': 'owner-id','Values': ['591542846629']},
+        {'Name': 'name','Values': ['amzn-ami-*.h-amazon-ecs-optimized']}
+    ],
+    'ubuntu1404' : [
+        {'Name': 'owner-id','Values': ['099720109477']},
+        {'Name': 'name','Values': ['ubuntu/images/hvm-ssd/ubuntu-trusty-14.04*']}
+    ],
+    'ubuntu1604' : [
+        {'Name': 'owner-id','Values': ['099720109477']},
+        {'Name': 'name','Values': ['ubuntu/images/hvm-ssd/ubuntu-xenial-16.04*']}
+    ],
+    'ubuntu1804' : [
+        {'Name': 'owner-id','Values': ['099720109477']},
+        {'Name': 'name','Values': ['ubuntu/images/hvm-ssd/ubuntu-bionic-18.04*']}
+    ],
+}
 
-session = boto3.Session(profile_name=getenv("AWS_PROFILE"))
+session = boto3.Session(profile_name=getenv("AWS_PROFILE", "default"))
 ec2_regions = session.client("ec2")
 response = ec2_regions.describe_regions()
 regions = list()
@@ -61,17 +104,29 @@ regions = list()
 for region in response['Regions']:
     regions.append(region["RegionName"])
 
-print("locals  {")
-print("  ami = {")
-
-for region_name in regions:
-    ec2_ami = session.client("ec2", region_name=region_name)
-    response = ec2_ami.describe_images(Filters=filters)
-    if len(response['Images']) > 0:
-        source_image = newest_image(response['Images'])
-        print("    \"{0}\" = \"{1}\"".format(region_name, source_image['ImageId']))
-    else:
-        continue
-
-print("  }")
-print("}")
+lines_to_file = []
+line = "locals  {"
+print(line)
+lines_to_file.append('{}\n'.format(line))
+for img in filters_dists:
+    line = "  {ami} = {{".format(ami=img)
+    print(line)
+    lines_to_file.append('{}\n'.format(line))
+    for region_name in regions:
+        ec2_ami = session.client("ec2", region_name=region_name)
+        response = ec2_ami.describe_images(Filters=filters_default + filters_dists[img])
+        if len(response['Images']) > 0:
+            source_image = newest_image(response['Images'])
+            line = "    \"{0}\" = \"{1}\"".format(region_name, source_image['ImageId'])
+            print(line)
+            lines_to_file.append('{}\n'.format(line))
+        else:
+            continue
+    line = "  }"
+    print(line)
+    lines_to_file.append('{}\n'.format(line))
+line = "}"
+print(line)
+lines_to_file.append('{}\n'.format(line))
+with open('{}/locals.tf'.format(path.dirname(path.realpath(__file__))), 'w') as f:
+    f.writelines(lines_to_file)
